@@ -1,0 +1,4 @@
+torch==2.15.0
+silero==0.5.5
+num2words==0.5.14
+imageio-ffmpeg==0.6.0
