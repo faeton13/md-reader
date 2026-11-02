@@ -6,10 +6,10 @@ A mod for Claude Code: a panel beside the chat that opens Markdown files and rea
 - Every part of the text has its own ▶ button.
 - Your place is remembered separately for each file.
 - Speed: ×0.75, ×1, ×1.5 and ×2.
-- Sets of files are kept between sessions, and the "Наборы" button brings them back.
+- Sets of files are kept between sessions, and the "Sets" button brings them back.
 - The voice is chosen in the panel.
 
-The panel's title follows your system language. Its buttons are in Russian.
+The panel follows your system language: Russian on a Russian system, English on any other.
 
 ## Install
 
@@ -31,7 +31,7 @@ The `/read` command opens the panel. `/read path/to/file.md` reads a file right 
 
 ## Voices
 
-Pick a voice with the "Голос" button in the panel. The choice is kept between sessions.
+Pick a voice with the "Voice" button in the panel. The choice is kept between sessions.
 
 | Module | What it needs | Languages |
 | --- | --- | --- |

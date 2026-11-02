@@ -4,8 +4,6 @@ import type { EngineInterface, FsEntry, Register } from 'claude-code'
 import type { Browser, Doc, FileSet, Phase, Reader, Source, VoiceChoice, VoiceMenu } from '../types'
 
 const PANE = 'md-reader'
-const TITLES: Record<string, string> = { ru: 'Чтение вслух' }
-const DEFAULT_TITLE = 'Read aloud'
 // The first two-letter tag: `"en-RU",` from macOS, `ru_RU.UTF-8` from Linux.
 const LANGUAGE_TAG = /(?:^|[^a-z])([a-z]{2})(?:[^a-z]|$)/
 const SYSTEM_LANGUAGE = [
@@ -42,6 +40,101 @@ const PYTHON = [
   'python="$HOME/.local/share/md-reader/venv/bin/python"; [ -x "$python" ] || python=python3; exec "$python" "$@"',
   'md-reader',
 ]
+
+const TEXTS = {
+  en: {
+    title: 'Read aloud',
+    commandHelp: 'Read a Markdown file aloud or pick files from a folder; /read stop stops it',
+    commandHint: '<file or folder> | stop',
+    stopped: 'Reading stopped.',
+    panelOpened: 'Reader panel opened.',
+    readingAloud: (path: string) => `Reading aloud: ${path}`,
+    filesOffered: (count: number) => `File buttons above the prompt: ${count}`,
+    play: '▶ Read',
+    stop: '⏹ Stop',
+    preparing: 'Preparing the speech…',
+    installing: 'Installing the voice, this takes a few minutes…',
+    engineSilent: 'The engine did not answer',
+    partsSkipped: (count: number) => `Parts not spoken: ${count}`,
+    speedFailed: 'The speed did not change',
+    selectedText: 'Selected text',
+    nothingSelected: 'No text is selected',
+    installFailed: 'The install failed',
+    voicesFailed: 'The list of voices did not open',
+    part: (heard: number, spoken: number) => `Part ${heard} of ${spoken}`,
+    titledPart: (title: string, heard: number, spoken: number) =>
+      `${title}: part ${heard} of ${spoken}`,
+    panel: 'Panel',
+    close: 'Close',
+    earlier: 'Earlier',
+    hide: 'Hide',
+    file: 'File',
+    filePlaceholder: 'Path to .md, then Enter',
+    fileSubmit: 'read',
+    collapse: 'Minimize',
+    selection: 'Selection',
+    files: 'Files',
+    hideFiles: 'Hide files',
+    sets: 'Sets',
+    noSets: 'No file sets yet',
+    projectFolder: 'Project folder',
+    back: '⬆ Back',
+    noFiles: 'No Markdown files here',
+    firstOf: (shown: number, total: number) => `Showing the first ${shown} of ${total}`,
+    voice: (label: string) => `Voice: ${label}`,
+    needsInstall: ' (needs installing)',
+    voiceOffer:
+      'Silero needs installing: about 1 GB downloads once. ' +
+      'The text and the other voices work without it.',
+    install: 'Install Silero',
+  },
+  ru: {
+    title: 'Чтение вслух',
+    commandHelp: 'Читать вслух MD-файл или выбрать файлы из папки; /read stop останавливает',
+    commandHint: '<файл или папка> | stop',
+    stopped: 'Чтение остановлено.',
+    panelOpened: 'Панель чтения открыта.',
+    readingAloud: (path: string) => `Читаю вслух: ${path}`,
+    filesOffered: (count: number) => `Кнопки файлов над полем ввода: ${count}`,
+    play: '▶ Читать',
+    stop: '⏹ Стоп',
+    preparing: 'Готовлю озвучку…',
+    installing: 'Устанавливаю голос, это несколько минут…',
+    engineSilent: 'Движок не ответил',
+    partsSkipped: (count: number) => `Не озвучено кусков: ${count}`,
+    speedFailed: 'Скорость не изменилась',
+    selectedText: 'Выделенный текст',
+    nothingSelected: 'Выделенного текста нет',
+    installFailed: 'Установка не удалась',
+    voicesFailed: 'Список голосов не открылся',
+    part: (heard: number, spoken: number) => `Часть ${heard} из ${spoken}`,
+    titledPart: (title: string, heard: number, spoken: number) =>
+      `${title}: часть ${heard} из ${spoken}`,
+    panel: 'Панель',
+    close: 'Закрыть',
+    earlier: 'Ранее',
+    hide: 'Скрыть',
+    file: 'Файл',
+    filePlaceholder: 'Путь к .md, потом Enter',
+    fileSubmit: 'читать',
+    collapse: 'Свернуть',
+    selection: 'Выделенное',
+    files: 'Файлы',
+    hideFiles: 'Скрыть файлы',
+    sets: 'Наборы',
+    noSets: 'Наборов файлов пока нет',
+    projectFolder: 'Папка проекта',
+    back: '⬆ Назад',
+    noFiles: 'Здесь нет MD-файлов',
+    firstOf: (shown: number, total: number) => `Показаны первые ${shown} из ${total}`,
+    voice: (label: string) => `Голос: ${label}`,
+    needsInstall: ' (нужна установка)',
+    voiceOffer:
+      'Голосу Silero нужна установка: один раз скачается около 1 ГБ. ' +
+      'Текст и другие голоса работают без неё.',
+    install: 'Установить Silero',
+  },
+}
 
 const doc = atom({ plugin: 'md-reader', key: 'doc' } as const, null as Doc | null, {
   shape: 'doc-1',
@@ -84,6 +177,8 @@ const offered = atom({ plugin: 'md-reader', key: 'offered' } as const, [] as str
   shape: 'offered-1',
 })
 
+// Not state: read at each session start, before anything is drawn.
+let texts = TEXTS.en
 // Not state: a reload drops the running clip's owner with the module.
 let playback: AbortController | undefined
 // A set outlives the session, so its relative paths are resolved against this.
@@ -128,8 +223,8 @@ const partsOf = (blocks: Doc['blocks'], position: number) => ({
 
 const transport = (isPlaying: boolean) => [
   isPlaying
-    ? { key: 'stop', label: '⏹ Стоп', variant: 'primary' as const }
-    : { key: 'play', label: '▶ Читать', variant: 'primary' as const },
+    ? { key: 'stop', label: texts.stop, variant: 'primary' as const }
+    : { key: 'play', label: texts.play, variant: 'primary' as const },
   { key: 'prev', label: '⏮' },
   { key: 'next', label: '⏭' },
 ]
@@ -159,14 +254,14 @@ const engine = ($: EngineInterface) => [...PYTHON, `${$.plugin.root}/engine/spea
 
 async function prepare($: EngineInterface, source: Source, isViewOnly = false) {
   halt()
-  await setReader($, { phase: 'preparing', note: isViewOnly ? '' : 'Готовлю озвучку…' })
+  await setReader($, { phase: 'preparing', note: isViewOnly ? '' : texts.preparing })
   const isText = 'text' in source
   const argv = [
     ...engine($),
     '--voice',
     (await read($, voice)).id,
     ...(isViewOnly ? ['--view'] : []),
-    ...(isText ? ['--stdin'] : ['--', source.path]),
+    ...(isText ? ['--stdin', '--title', texts.selectedText] : ['--', source.path]),
   ]
 
   try {
@@ -181,7 +276,7 @@ async function prepare($: EngineInterface, source: Source, isViewOnly = false) {
       return false
     }
     if (run.exitCode !== 0 || run.isStdoutTruncated) {
-      const reason = lastLine(run.stderr) || 'движок не ответил'
+      const reason = lastLine(run.stderr) || texts.engineSilent
       await setReader($, { phase: 'failed', note: reason })
 
       return false
@@ -195,7 +290,7 @@ async function prepare($: EngineInterface, source: Source, isViewOnly = false) {
       phase: 'idle',
       path,
       position: Math.max(left !== undefined && left < loaded.blocks.length ? left : start, 0),
-      note: loaded.skipped > 0 ? `Не озвучено кусков: ${loaded.skipped}` : '',
+      note: loaded.skipped > 0 ? texts.partsSkipped(loaded.skipped) : '',
     })
 
     return start >= 0
@@ -212,7 +307,7 @@ async function atSpeed($: EngineInterface, audio: string, speed: number) {
   const { id } = await read($, voice)
   const run = await $.process.run([...engine($), '--voice', id, '--retime', String(speed), '--', audio])
   if (run.exitCode !== 0) {
-    throw new Error(lastLine(run.stderr) || 'Скорость не изменилась')
+    throw new Error(lastLine(run.stderr) || texts.speedFailed)
   }
 
   return run.stdout.trim()
@@ -274,7 +369,7 @@ async function openText($: EngineInterface, path: string) {
 }
 
 async function installVoice($: EngineInterface) {
-  await setReader($, { phase: 'installing', note: 'Устанавливаю голос, это несколько минут…' })
+  await setReader($, { phase: 'installing', note: texts.installing })
   // Not `process.run`: it allows ten minutes, a slow download takes longer.
   const setup = $.process.spawn({ argv: ['/bin/sh', `${$.plugin.root}/engine/setup.sh`] })
   let said = ''
@@ -284,7 +379,7 @@ async function installVoice($: EngineInterface) {
     piece = await setup.next()
   }
   if (piece.value.code !== 0) {
-    return setReader($, { phase: 'needsVoice', note: lastLine(said) || 'Установка не удалась' })
+    return setReader($, { phase: 'needsVoice', note: lastLine(said) || texts.installFailed })
   }
   await setReader($, { phase: 'idle', note: '' })
   const source = waiting
@@ -298,12 +393,12 @@ async function toggleVoices($: EngineInterface) {
     return update($, voices, now => ({ ...now, isOpen: false }))
   }
   const run = await $.process.run([...engine($), '--voices'])
-  if (run.exitCode !== 0) throw new Error(lastLine(run.stderr) || 'Список голосов не открылся')
+  if (run.exitCode !== 0) throw new Error(lastLine(run.stderr) || texts.voicesFailed)
 
   return update($, voices, () => ({ isOpen: true, list: JSON.parse(run.stdout) }))
 }
 
-// Clips made by the old voice go: the next «Читать» speaks with the new one.
+// Clips made by the old voice go: the next reading speaks with the new one.
 async function pickVoice($: EngineInterface, { id, label }: VoiceChoice) {
   await stop($)
   await update($, voice, () => ({ id, label }))
@@ -323,7 +418,7 @@ async function readSelection($: EngineInterface) {
   if (selected?.text.trim()) {
     await readAloud($, { text: selected.text })
   } else {
-    await setReader($, { phase: 'idle', note: 'Выделенного текста нет' })
+    await setReader($, { phase: 'idle', note: texts.nothingSelected })
   }
 }
 
@@ -405,16 +500,15 @@ async function stop($: EngineInterface) {
   await setReader($, { phase: 'idle' })
 }
 
-// The engine names no interface language, so the title follows the system's first one.
-async function paneTitle($: EngineInterface) {
+// The engine names no interface language, so the panel follows the system's first one.
+async function chooseLanguage($: EngineInterface) {
   const listed = await $.process.run(SYSTEM_LANGUAGE).catch(() => undefined)
-
-  return TITLES[LANGUAGE_TAG.exec(listed?.stdout ?? '')?.[1] ?? ''] ?? DEFAULT_TITLE
+  texts = LANGUAGE_TAG.exec(listed?.stdout ?? '')?.[1] === 'ru' ? TEXTS.ru : TEXTS.en
 }
 
 async function openPane($: EngineInterface) {
   await setReader($, { isCollapsed: false })
-  await $.ui.open({ id: PANE, title: await paneTitle($) })
+  await $.ui.open({ id: PANE, title: texts.title })
 }
 
 async function markdownIn($: EngineInterface, folder: string) {
@@ -457,12 +551,12 @@ async function begin($: EngineInterface, path: string) {
   if (files.length > 0) {
     await offerSet($, fileName(path.replace(/\/+$/, '')), files)
 
-    return `Кнопки файлов над полем ввода: ${files.length}`
+    return texts.filesOffered(files.length)
   }
   await openPane($)
   answer($, () => readAloud($, { path }))
 
-  return `Читаю вслух: ${path}`
+  return texts.readingAloud(path)
 }
 
 async function press($: EngineInterface, element: string) {
@@ -542,10 +636,11 @@ async function press($: EngineInterface, element: string) {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    await chooseLanguage($)
     await $.command.register({
       name: 'read',
-      description: 'Читать вслух MD-файл или выбрать файлы из папки; /read stop останавливает',
-      argumentHint: '<файл или папка> | stop',
+      description: texts.commandHelp,
+      argumentHint: texts.commandHint,
     })
     await $.tool.register({
       name: TOOL,
@@ -586,12 +681,12 @@ export const register: Register = on => {
     if (STOP_WORDS.includes(path.toLowerCase())) {
       await stop($)
 
-      return { text: 'Чтение остановлено.' }
+      return { text: texts.stopped }
     }
     if (path) return { text: await begin($, path) }
     await openPane($)
 
-    return { text: 'Панель чтения открыта.' }
+    return { text: texts.panelOpened }
   })
 
   on('tool.call', { tool: 'mcp__md-reader__read_aloud' }, async ($, e) => {
@@ -685,9 +780,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" gap={1}>
         {hasControls && (
-          <Text wrap="truncate-end">
-            {loaded.title}: часть {heard} из {spoken}
-          </Text>
+          <Text wrap="truncate-end">{texts.titledPart(loaded.title, heard, spoken)}</Text>
         )}
         {hasControls && note !== '' && (
           <Text color={phase === 'failed' ? 'error' : undefined}>{note}</Text>
@@ -700,8 +793,8 @@ export const register: Register = on => {
             {speedChoices(speed).map(props => (
               <Button {...props} onPress={answeredByKey} />
             ))}
-            <Button key="panel" label="Панель" onPress={answeredByKey} />
-            <Button key="dismiss" label="Закрыть" onPress={answeredByKey} />
+            <Button key="panel" label={texts.panel} onPress={answeredByKey} />
+            <Button key="dismiss" label={texts.close} onPress={answeredByKey} />
           </Box>
         )}
         {files.length > 0 && (
@@ -709,8 +802,8 @@ export const register: Register = on => {
             {fileChoices(files, path, isPlaying).map(props => (
               <Button {...props} onPress={answeredByKey} />
             ))}
-            <Button key="history" label="Ранее" onPress={answeredByKey} />
-            <Button key="forget" label="Скрыть" onPress={answeredByKey} />
+            <Button key="history" label={texts.earlier} onPress={answeredByKey} />
+            <Button key="forget" label={texts.hide} onPress={answeredByKey} />
           </Box>
         )}
       </Box>
@@ -749,27 +842,27 @@ export const register: Register = on => {
         {'Input' in ui && (
           <ui.Input
             key="path"
-            label="Файл"
-            placeholder="Путь к .md, потом Enter"
-            submitLabel="читать"
+            label={texts.file}
+            placeholder={texts.filePlaceholder}
+            submitLabel={texts.fileSubmit}
             onSubmit={answeredByKey}
           />
         )}
         <Box flexDirection="row" gap={1} flexWrap="wrap">
           {blocks.length > 0 &&
             controls.map(props => <Button {...props} onPress={answeredByKey} />)}
-          {isPlaying && <Button key="collapse" label="Свернуть" onPress={answeredByKey} />}
-          <Button key="selection" label="Выделенное" onPress={answeredByKey} />
+          {isPlaying && <Button key="collapse" label={texts.collapse} onPress={answeredByKey} />}
+          <Button key="selection" label={texts.selection} onPress={answeredByKey} />
           <Button
             key="files"
-            label={files.isOpen ? 'Скрыть файлы' : 'Файлы'}
+            label={files.isOpen ? texts.hideFiles : texts.files}
             onPress={answeredByKey}
           />
-          <Button key="sets" label="Наборы" onPress={answeredByKey} />
+          <Button key="sets" label={texts.sets} onPress={answeredByKey} />
         </Box>
         {files.isSetsOpen && (
           <Box flexDirection="column">
-            {fileSets.length === 0 && <Text dimColor>Наборов файлов пока нет</Text>}
+            {fileSets.length === 0 && <Text dimColor>{texts.noSets}</Text>}
             {fileSets.map((set, index) => (
               <Button
                 key={`${SET_KEY}${index}`}
@@ -782,15 +875,13 @@ export const register: Register = on => {
         )}
         {files.isOpen && (
           <Box flexDirection="column">
-            <Text dimColor>{files.folder === ROOT ? 'Папка проекта' : files.folder}</Text>
+            <Text dimColor>{files.folder === ROOT ? texts.projectFolder : files.folder}</Text>
             {files.folder !== ROOT && (
-              <Button key="up" plain label="⬆ Назад" onPress={answeredByKey} />
+              <Button key="up" plain label={texts.back} onPress={answeredByKey} />
             )}
-            {files.entries.length === 0 && <Text dimColor>Здесь нет MD-файлов</Text>}
+            {files.entries.length === 0 && <Text dimColor>{texts.noFiles}</Text>}
             {files.entries.length > LIST_LIMIT && (
-              <Text dimColor>
-                Показаны первые {LIST_LIMIT} из {files.entries.length}
-              </Text>
+              <Text dimColor>{texts.firstOf(LIST_LIMIT, files.entries.length)}</Text>
             )}
             {files.entries.slice(0, LIST_LIMIT).map(entry => (
               <Button
@@ -806,7 +897,7 @@ export const register: Register = on => {
           {speedChoices(speed).map(props => (
             <Button {...props} onPress={answeredByKey} />
           ))}
-          <Button key="voices" label={`Голос: ${chosen.label}`} onPress={answeredByKey} />
+          <Button key="voices" label={texts.voice(chosen.label)} onPress={answeredByKey} />
         </Box>
         {chooser.isOpen && (
           <Box flexDirection="column">
@@ -814,26 +905,19 @@ export const register: Register = on => {
               <Button
                 key={`${VOICE_KEY}${index}`}
                 plain
-                label={`${one.id === chosen.id ? '● ' : ''}${one.label}${one.isReady ? '' : ' (нужна установка)'}`}
+                label={`${one.id === chosen.id ? '● ' : ''}${one.label}${one.isReady ? '' : texts.needsInstall}`}
                 onPress={answeredByKey}
               />
             ))}
           </Box>
         )}
+        {phase === 'needsVoice' && <Text>{texts.voiceOffer}</Text>}
         {phase === 'needsVoice' && (
-          <Text>
-            Голосу Silero нужна установка: один раз скачается около 1 ГБ. Текст и другие голоса
-            работают без неё.
-          </Text>
-        )}
-        {phase === 'needsVoice' && (
-          <Button key="install" label="Установить Silero" variant="primary" onPress={answeredByKey} />
+          <Button key="install" label={texts.install} variant="primary" onPress={answeredByKey} />
         )}
         {loaded && <Text bold>{loaded.title}</Text>}
         {spoken > 0 && (
-          <Text dimColor>
-            Часть {heard} из {spoken}
-          </Text>
+          <Text dimColor>{texts.part(heard, spoken)}</Text>
         )}
         {note !== '' && (
           <Text color={phase === 'failed' || phase === 'needsVoice' ? 'error' : undefined}>{note}</Text>

@@ -465,7 +465,7 @@ def voice_by_id(voice_id):
     for voice in custom_voices():
         if voice["id"] == voice_id:
             return CommandVoice(voice_id, voice["command"], "." + voice.get("format", "wav"))
-    sys.exit(f"Голос не найден: {voice_id}")
+    sys.exit(f"Voice not found: {voice_id}")
 
 
 def at_speed(clip, speed, voice):
@@ -502,7 +502,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", nargs="?")
     parser.add_argument("--stdin", action="store_true")
-    parser.add_argument("--title", default="Выделенный текст")
+    parser.add_argument("--title", default="Selected text")
     parser.add_argument("--retime", type=float)
     parser.add_argument("--view", action="store_true")
     parser.add_argument("--voice", default=DEFAULT_VOICE)
@@ -527,7 +527,7 @@ def main():
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
-            sys.exit(f"Не удалось прочитать файл: {path}")
+            sys.exit(f"Cannot read the file: {path}")
         heading = re.search(r"^#{1,6}\s+(.+)$", text, flags=re.M)
         title = EMOJI.sub("", heading.group(1)).strip() if heading else path.name
 

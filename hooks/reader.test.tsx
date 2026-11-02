@@ -73,7 +73,7 @@ test('/read starts reading and says what it reads', async ($, on) => {
   const ran = await $.command.run({ command: 'read', args: 'a.md' })
   await done
 
-  expect(ran.text).toBe('Читаю вслух: a.md')
+  expect(ran.text).toBe('Reading aloud: a.md')
   expect(played).toEqual(['/cache/1.mp3', '/cache/2.mp3'])
 })
 
@@ -88,7 +88,7 @@ test('the panel says which part is read, on every surface', async ($, on) => {
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ type: 'Text', text: /Глава/ }))?.text).toBe('Глава')
-    expect((await ui.find({ type: 'Text', text: /Часть/ }))?.text).toBe('Часть 1 из 2')
+    expect((await ui.find({ type: 'Text', text: /Part/ }))?.text).toBe('Part 1 of 2')
     await ui.unmount()
   }
 })
@@ -138,7 +138,7 @@ test('a speed picked while reading restarts the part at that speed', async ($, o
   await until(() => played.length === 3)
 
   expect(played).toEqual(['/cache/1.mp3', '/cache/2.mp3', '/cache/2.x1.5.mp3'])
-  expect(calls.filter(argv => !argv.includes('--retime'))).toHaveLength(1)
+  expect(calls.filter(argv => argv.includes('md-reader') && !argv.includes('--retime'))).toHaveLength(1)
   await ui.unmount()
 })
 
@@ -237,7 +237,7 @@ test('a file pressed in the list is read, and the list leaves only MD and folder
   await ui.press({ key: 'entry-docs' })
   await ui.press({ key: 'entry-c.md' })
 
-  expect(calls[0].slice(-2)).toEqual(['--', 'docs/c.md'])
+  expect(calls.at(-1)?.slice(-2)).toEqual(['--', 'docs/c.md'])
   expect(played).toEqual(['/cache/1.mp3', '/cache/2.mp3'])
   expect(await ui.find({ key: 'entry-c.md' })).toBeFalsy()
   await ui.unmount()
@@ -317,7 +317,7 @@ test('a panel folded while reading goes to the band and the voice goes on', asyn
     if (played.length === 2) {
       await settled()
       const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
-      shown = (await band.find({ key: 'stop' })) && (await band.find({ type: 'Text', text: /часть 2 из 2/ }))
+      shown = (await band.find({ key: 'stop' })) && (await band.find({ type: 'Text', text: /part 2 of 2/ }))
       await band.unmount()
     }
   }
@@ -582,7 +582,7 @@ test('/read with a folder offers its Markdown files', async ($, on) => {
   await $.session.start(session)
 
   const ran = await $.command.run({ command: 'read', args: 'jobs/варианты/' })
-  expect(ran.text).toBe('Кнопки файлов над полем ввода: 2')
+  expect(ran.text).toBe('File buttons above the prompt: 2')
   expect(played).toEqual([])
 
   const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
@@ -936,7 +936,7 @@ test('a voice not installed is offered, and the file is read once it is in', asy
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   await ui.input({ key: 'path', text: 'a.md' })
   expect(played).toEqual([])
-  expect(await ui.find({ type: 'Text', text: /нужна установка/ })).toBeTruthy()
+  expect(await ui.find({ type: 'Text', text: /needs installing/ })).toBeTruthy()
 
   await ui.press({ key: 'install' })
   await until(() => played.length === 2)
@@ -991,7 +991,7 @@ test('a picked voice reads the waiting file, plays wav and outlives the session'
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   await ui.input({ key: 'path', text: 'a.md' })
   await ui.press({ key: 'voices' })
-  expect((await ui.find({ key: 'voice-0' }))?.text).toBe('● Silero: Xenia (нужна установка)')
+  expect((await ui.find({ key: 'voice-0' }))?.text).toBe('● Silero: Xenia (needs installing)')
 
   await ui.press({ key: 'voice-1' })
   await until(() => played.length === 1)
@@ -999,7 +999,7 @@ test('a picked voice reads the waiting file, plays wav and outlives the session'
   expect(played).toEqual([{ clip: '/cache/1.wav', mime: 'audio/wav' }])
   expect(calls.at(-1)).toContain('say:Milena')
   expect(inStore.voice).toEqual({ id: 'say:Milena', label: 'macOS: Milena (ru)' })
-  expect((await ui.find({ key: 'voices' }))?.text).toBe('Голос: macOS: Milena (ru)')
+  expect((await ui.find({ key: 'voices' }))?.text).toBe('Voice: macOS: Milena (ru)')
   await ui.unmount()
 })
 
@@ -1018,7 +1018,7 @@ test('the voice kept from an earlier session is the one asked for', async ($, on
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   await ui.input({ key: 'path', text: 'a.md' })
 
-  expect(calls[0]).toContain('say:Milena')
+  expect(calls.at(-1)).toContain('say:Milena')
   await ui.unmount()
 })
 
@@ -1089,4 +1089,30 @@ test('a panel opens with the English title when the language cannot be read', as
   await $.command.run({ command: 'read', args: '' })
 
   expect(titles).toEqual(['Read aloud'])
+})
+
+test('a Russian system gets the panel in Russian', async ($, on) => {
+  stand(on, [], engineAnswers('(\n    "ru-RU"\n)\n'))
+  await $.session.start(session)
+
+  const ran = await $.command.run({ command: 'read', args: '' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  expect(ran.text).toBe('Панель чтения открыта.')
+  expect((await ui.find({ key: 'files' }))?.text).toBe('Файлы')
+  expect((await ui.find({ key: 'voices' }))?.text).toBe('Голос: Silero: Xenia')
+  await ui.unmount()
+})
+
+test('any other system gets the panel in English', async ($, on) => {
+  stand(on, [])
+  await $.session.start(session)
+
+  const ran = await $.command.run({ command: 'read', args: '' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  expect(ran.text).toBe('Reader panel opened.')
+  expect((await ui.find({ key: 'files' }))?.text).toBe('Files')
+  expect((await ui.find({ key: 'sets' }))?.text).toBe('Sets')
+  await ui.unmount()
 })

@@ -26,7 +26,7 @@ find_python() {
 if [ ! -x "$PYTHON" ]; then
   python="$(find_python)"
   if [ -z "$python" ]; then
-    echo "Нужен Python 3.11-3.13: https://www.python.org/downloads/" >&2
+    echo "Python 3.11-3.13 is needed: https://www.python.org/downloads/" >&2
     exit 1
   fi
   mkdir -p "$HOME_DIR"
