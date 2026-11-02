@@ -1,97 +1,99 @@
 # md-reader
 
-Мод для Claude Code: панель рядом с чатом, которая открывает Markdown-файлы и читает их вслух. Удобна, когда нужно сравнить несколько вариантов текста глазами и на слух.
+A mod for Claude Code: a panel beside the chat that opens Markdown files and reads them aloud. It is built for comparing several versions of a text, by eye and by ear.
 
-- Файлы, которые Claude прислал в чат, становятся вкладками панели. Текст открывается сразу, без озвучки.
-- Кнопка ▶ есть у каждой части текста.
-- Место чтения запоминается отдельно для каждого файла.
-- Скорость: ×0,75, ×1, ×1,5 и ×2.
-- Наборы файлов сохраняются между сессиями, к ним можно вернуться кнопкой «Наборы».
-- Голос выбирается в панели.
+- Files Claude sends to the chat become tabs in the panel. A tab opens the text at once, without generating speech.
+- Every part of the text has its own ▶ button.
+- Your place is remembered separately for each file.
+- Speed: ×0.75, ×1, ×1.5 and ×2.
+- Sets of files are kept between sessions, and the "Наборы" button brings them back.
+- The voice is chosen in the panel.
 
-## Установка
+The panel's interface is in Russian.
 
-В терминале, в поле ввода Claude Code:
+## Install
+
+At the prompt of a Claude Code terminal session:
 
 ```
 /plugin install md-reader --marketplace faeton13/md-reader
 ```
 
-Из обычной оболочки:
+From a shell:
 
 ```
 claude plugin install md-reader --marketplace faeton13/md-reader
 ```
 
-В настольном приложении команда `/plugin` не работает: нажмите **+** возле поля ввода, затем Plugins, Add marketplace с адресом `faeton13/md-reader` и Add plugin.
+In the desktop app, where `/plugin` does not run: click **+** next to the prompt box, then Plugins, Add marketplace with `faeton13/md-reader`, then Add plugin.
 
-Панель открывается командой `/read`. Команда `/read путь/к/файлу.md` сразу читает файл, а `/read путь/к/папке` предлагает файлы из папки. Команда `/read stop` останавливает чтение.
+The `/read` command opens the panel. `/read path/to/file.md` reads a file right away, and `/read path/to/folder` offers the files in that folder. `/read stop` stops reading.
 
-## Голоса
+## Voices
 
-Голос выбирается кнопкой «Голос» в панели. Выбор сохраняется между сессиями.
+Pick a voice with the "Голос" button in the panel. The choice is kept between sessions.
 
-| Модуль | Что нужно | Языки |
+| Module | What it needs | Languages |
 | --- | --- | --- |
-| Silero: Xenia, Kseniya, Baya, Aidar, Eugene | Установка кнопкой в панели: около 1 ГБ, Python 3.11–3.13 | Русский |
-| macOS | Ничего, это голоса системы | Русский и языки системы |
-| Своя программа | Запись в `voices.json` | Любые |
+| Silero: Xenia, Kseniya, Baya, Aidar, Eugene | One-click install from the panel: about 1 GB, Python 3.11–3.13 | Russian |
+| macOS | Nothing, these are the system voices | Russian and your system languages |
+| Your own program | An entry in `voices.json` | Any |
 
-Silero предлагает установку сам, когда голос понадобится впервые. Установка идёт несколько минут и один раз, а работает он потом без интернета.
+Silero offers to install itself the first time it is needed. The install takes a few minutes and happens once. After that Silero works offline.
 
-### Своя программа
+### Your own program
 
-Подойдёт любая программа, которая читает текст со стандартного ввода и пишет звуковой файл. Опишите её в `~/.local/share/md-reader/voices.json`:
+Any program that reads text from standard input and writes a sound file will do. Describe it in `~/.local/share/md-reader/voices.json`:
 
 ```json
 [
   {
     "id": "piper-ru",
-    "label": "Piper: Ирина",
+    "label": "Piper: Irina",
     "command": ["piper", "--model", "/path/to/ru_RU-irina-medium.onnx", "--output_file", "{out}"],
     "format": "wav"
   }
 ]
 ```
 
-- `{out}` — куда записать файл.
-- `{rate}` — темп в словах в минуту, 175 при обычной скорости. Необязателен.
-- `format` — `wav` или `mp3`.
+- `{out}` is the file to write.
+- `{rate}` is the tempo in words per minute, 175 at normal speed. It is optional.
+- `format` is `wav` or `mp3`.
 
-Если `{rate}` в команде нет, для смены скорости нужен ffmpeg.
+Without `{rate}` in the command, changing the speed needs ffmpeg.
 
-## Словарь ударений
+## Pronunciation dictionary
 
-Для Silero произношение слов можно поправить в `~/.local/share/md-reader/pronunciation.json`. Знак `+` ставится перед ударной гласной:
+For Silero, you can correct how words are spoken in `~/.local/share/md-reader/pronunciation.json`. Put `+` before the stressed vowel:
 
 ```json
 { "Кафка": "К+афка" }
 ```
 
-Русский ключ совпадает с началом слова, поэтому покрывает и падежи.
+A Russian key matches the start of a word, so it covers the case endings too.
 
-## Где это работает
+## Where it runs
 
-| Система | Состояние |
+| System | Status |
 | --- | --- |
-| macOS на Apple Silicon | Проверено |
-| Linux | Голоса Silero и своя программа должны работать, но не проверялись |
-| Windows | Не работает |
+| macOS on Apple Silicon | Tested |
+| Linux | Silero and your own program should work, but are untested |
+| Windows | Does not work |
 
-Нужен `python3`. На macOS он ставится вместе с Xcode Command Line Tools.
+`python3` is required. On macOS it comes with the Xcode Command Line Tools.
 
-## Данные
+## Your data
 
-Текст обрабатывается на вашем компьютере. Silero и голоса macOS никуда его не отправляют, а своя программа работает так, как устроена она сама. Интернет нужен только при установке Silero.
+Text is processed on your computer. Silero and the macOS voices send it nowhere, and your own program does whatever it was built to do. Internet access is needed only to install Silero.
 
-Всё хранится в `~/.local/share/md-reader`: голос, словарь и готовые аудиофайлы. Чтобы удалить это, отключите плагин и выполните:
+Everything is kept in `~/.local/share/md-reader`: the voice, the dictionary and the generated audio. To remove it, disable the plugin and run:
 
 ```
 rm -rf ~/.local/share/md-reader
 ```
 
-## Лицензия
+## License
 
-Код мода распространяется по лицензии MIT, см. [LICENSE](LICENSE).
+The mod's code is under the MIT License, see [LICENSE](LICENSE).
 
-Голоса Silero в мод не входят: они скачиваются при установке. Модель `v5_5_ru` принадлежит [Silero](https://github.com/snakers4/silero-models) и распространяется под CC BY-NC-SA 4.0. Её можно использовать только некоммерчески и с указанием авторства.
+The Silero voices are not part of the mod: they are downloaded during the install. The `v5_5_ru` model belongs to [Silero](https://github.com/snakers4/silero-models) and is licensed under CC BY-NC-SA 4.0, which allows non-commercial use with attribution only.
