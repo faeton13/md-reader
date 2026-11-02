@@ -192,7 +192,7 @@ test('a speed needs no file path, so it works on a panel reopened with /read', a
   await until(() => played.length === 4)
 
   expect(played.slice(2)).toEqual(['/cache/1.x0.75.mp3', '/cache/2.x0.75.mp3'])
-  expect(calls.filter(argv => !argv.includes('--retime'))).toHaveLength(1)
+  expect(calls.filter(argv => argv.includes('md-reader') && !argv.includes('--retime'))).toHaveLength(1)
   await ui.unmount()
 })
 
@@ -1044,4 +1044,49 @@ test('a new voice drops the clips of the old one', async ($, on) => {
 
   expect(calls.at(-1)).toContain('say:Milena')
   await ui.unmount()
+})
+
+for (const [listed, title] of [
+  ['(\n    "ru-RU",\n    "en-RU"\n)\n', 'Чтение вслух'],
+  ['(\n    "en-RU",\n    "ru-RU"\n)\n', 'Read aloud'],
+  ['ru_RU.UTF-8\n', 'Чтение вслух'],
+  ['\n', 'Read aloud'],
+] as const) {
+  test(`system languages ${JSON.stringify(listed)} title the panel ${title}`, async ($, on) => {
+    const titles: string[] = []
+    on('command.register', () => ({ value: { command: 'read' } }))
+    on('tool.register', () => ({ value: { tool: 'mcp__md-reader__read_aloud' } }))
+    on('session.start', (_, e) => ({ cwd: e.cwd }))
+    on('process.run', () => engineAnswers(listed))
+    on('ui.open', (_, e) => {
+      titles.push(e.title)
+
+      return { value: { isPlaced: true } }
+    })
+    await $.session.start(session)
+
+    await $.command.run({ command: 'read', args: '' })
+
+    expect(titles).toEqual([title])
+  })
+}
+
+test('a panel opens with the English title when the language cannot be read', async ($, on) => {
+  const titles: string[] = []
+  on('command.register', () => ({ value: { command: 'read' } }))
+  on('tool.register', () => ({ value: { tool: 'mcp__md-reader__read_aloud' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('process.run', () => {
+    throw new Error('no shell')
+  })
+  on('ui.open', (_, e) => {
+    titles.push(e.title)
+
+    return { value: { isPlaced: true } }
+  })
+  await $.session.start(session)
+
+  await $.command.run({ command: 'read', args: '' })
+
+  expect(titles).toEqual(['Read aloud'])
 })

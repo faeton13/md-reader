@@ -4,7 +4,15 @@ import type { EngineInterface, FsEntry, Register } from 'claude-code'
 import type { Browser, Doc, FileSet, Phase, Reader, Source, VoiceChoice, VoiceMenu } from '../types'
 
 const PANE = 'md-reader'
-const TITLE = 'Чтение вслух'
+const TITLES: Record<string, string> = { ru: 'Чтение вслух' }
+const DEFAULT_TITLE = 'Read aloud'
+// The first two-letter tag: `"en-RU",` from macOS, `ru_RU.UTF-8` from Linux.
+const LANGUAGE_TAG = /(?:^|[^a-z])([a-z]{2})(?:[^a-z]|$)/
+const SYSTEM_LANGUAGE = [
+  '/bin/sh',
+  '-c',
+  'defaults read -g AppleLanguages 2>/dev/null || echo "${LC_ALL:-$LANG}"',
+]
 const TOOL = 'read_aloud'
 const BLOCKS_BEHIND = 1
 const BLOCKS_AHEAD = 6
@@ -397,9 +405,16 @@ async function stop($: EngineInterface) {
   await setReader($, { phase: 'idle' })
 }
 
+// The engine names no interface language, so the title follows the system's first one.
+async function paneTitle($: EngineInterface) {
+  const listed = await $.process.run(SYSTEM_LANGUAGE).catch(() => undefined)
+
+  return TITLES[LANGUAGE_TAG.exec(listed?.stdout ?? '')?.[1] ?? ''] ?? DEFAULT_TITLE
+}
+
 async function openPane($: EngineInterface) {
   await setReader($, { isCollapsed: false })
-  await $.ui.open({ id: PANE, title: TITLE })
+  await $.ui.open({ id: PANE, title: await paneTitle($) })
 }
 
 async function markdownIn($: EngineInterface, folder: string) {

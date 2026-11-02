@@ -9,7 +9,7 @@ A mod for Claude Code: a panel beside the chat that opens Markdown files and rea
 - Sets of files are kept between sessions, and the "Наборы" button brings them back.
 - The voice is chosen in the panel.
 
-The panel's interface is in Russian.
+The panel's title follows your system language. Its buttons are in Russian.
 
 ## Install
 
