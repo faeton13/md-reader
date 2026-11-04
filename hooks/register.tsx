@@ -170,11 +170,16 @@ const voices = atom(
   { shape: 'voices-1' },
 )
 
-// Markdown files just sent to the person. The app draws a file's card itself and
-// draws its tool row before the input arrives, so a play button cannot stand
-// beside the card; the band above the prompt offers these instead.
+// The panel's tabs: files just sent to the person, then each file opened since.
+// The app draws a file's card itself and draws its tool row before the input
+// arrives, so a play button cannot stand beside the card; the band above the
+// prompt offers these instead.
 const offered = atom({ plugin: 'md-reader', key: 'offered' } as const, [] as string[], {
   shape: 'offered-1',
+})
+// Hiding the band keeps the tabs; the next files sent bring the band back.
+const isBandHidden = atom({ plugin: 'md-reader', key: 'isBandHidden' } as const, false, {
+  shape: 'band-1',
 })
 
 // Not state: read at each session start, before anything is drawn.
@@ -256,12 +261,14 @@ async function prepare($: EngineInterface, source: Source, isViewOnly = false) {
   halt()
   await setReader($, { phase: 'preparing', note: isViewOnly ? '' : texts.preparing })
   const isText = 'text' in source
+  // Absolute, so a file typed as `a.md` is the same tab as one sent as `/x/a.md`.
+  const path = isText ? null : absolute(source.path)
   const argv = [
     ...engine($),
     '--voice',
     (await read($, voice)).id,
     ...(isViewOnly ? ['--view'] : []),
-    ...(isText ? ['--stdin', '--title', texts.selectedText] : ['--', source.path]),
+    ...(path === null ? ['--stdin', '--title', texts.selectedText] : ['--', path]),
   ]
 
   try {
@@ -283,9 +290,11 @@ async function prepare($: EngineInterface, source: Source, isViewOnly = false) {
     }
     const loaded: Doc = JSON.parse(run.stdout)
     const start = firstSpoken(loaded)
-    const path = 'path' in source ? source.path : null
     const left = path === null ? undefined : (await read($, spots))[path]
     await update($, doc, () => loaded)
+    if (path !== null) {
+      await update($, offered, tabs => (tabs.includes(path) ? tabs : [...tabs, path]))
+    }
     await setReader($, {
       phase: 'idle',
       path,
@@ -520,8 +529,11 @@ async function markdownIn($: EngineInterface, folder: string) {
     .sort()
 }
 
+// `~` is left for the engine to expand; a leading `./` would make a second tab.
 const absolute = (path: string) =>
-  path.startsWith('/') ? path : `${sessionFolder.replace(/\/+$/, '')}/${path}`
+  path.startsWith('/') || path.startsWith('~')
+    ? path
+    : `${sessionFolder.replace(/\/+$/, '')}/${path.replace(/^(\.\/)+/, '')}`
 
 // The store, not the session's copy: another session may have added a set.
 async function storedSets($: EngineInterface) {
@@ -534,6 +546,7 @@ async function offerSet($: EngineInterface, title: string, files: string[]) {
   const full = files.map(absolute)
   const key = full.join('\n')
   await update($, offered, () => full)
+  await update($, isBandHidden, () => false)
   const id = String(await $.clock.now())
   const kept = [
     { id, title: title.slice(0, TITLE_LIMIT), files: full },
@@ -571,7 +584,7 @@ async function press($: EngineInterface, element: string) {
 
     return setReader($, { isCollapsed: false })
   }
-  if (element === 'forget') return update($, offered, () => [])
+  if (element === 'forget') return update($, isBandHidden, () => true)
   if (element === 'sets') {
     const known = await storedSets($)
     await update($, sets, () => known)
@@ -588,8 +601,10 @@ async function press($: EngineInterface, element: string) {
   if (element.startsWith(SET_KEY)) {
     const picked = (await read($, sets))[Number(element.slice(SET_KEY.length))]
     await update($, browser, now => ({ ...now, isSetsOpen: false }))
+    if (!picked) return
+    await update($, isBandHidden, () => false)
 
-    return picked ? update($, offered, () => picked.files) : undefined
+    return update($, offered, () => picked.files)
   }
   if (element === 'voices') return toggleVoices($)
   if (element === 'install') return phase === 'needsVoice' ? installVoice($) : undefined
@@ -769,7 +784,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const { isCollapsed, note, path, phase, position, speed } = await read($, reader)
     const loaded = await read($, doc)
-    const files = await read($, offered)
+    const files = (await read($, isBandHidden)) ? [] : await read($, offered)
     const isPlaying = phase === 'playing'
     const hasControls = isCollapsed && loaded !== null
     if (!hasControls && files.length === 0) return next(e)
@@ -819,9 +834,8 @@ export const register: Register = on => {
     const chosen = await read($, voice)
     const chooser = await read($, voices)
     const fileSets = await read($, sets)
-    const offeredFiles = await read($, offered)
-    // Hiding the band must not take the tabs away: they fall back on the latest set.
-    const chatFiles = offeredFiles.length > 0 ? offeredFiles : (fileSets[0]?.files ?? [])
+    // A new session starts with no tabs; earlier sets wait under "Sets".
+    const chatFiles = await read($, offered)
     const isPlaying = phase === 'playing'
     const blocks = loaded?.blocks ?? []
     const { heard, spoken } = partsOf(blocks, position)

@@ -35,6 +35,7 @@ declare module 'claude-code' {
     'md-reader': {
       browser: Shaped<Browser>
       doc: Shaped<Doc | null>
+      isBandHidden: Shaped<boolean>
       offered: Shaped<string[]>
       reader: Shaped<Reader>
       sets: Shaped<FileSet[]>

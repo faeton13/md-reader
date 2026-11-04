@@ -2,7 +2,7 @@
 
 A mod for Claude Code: a panel beside the chat that opens Markdown files and reads them aloud. It is built for comparing several versions of a text, by eye and by ear.
 
-- Files Claude sends to the chat become tabs in the panel. A tab opens the text at once, without generating speech.
+- Files Claude sends to the chat become tabs in the panel, and every file you open joins them. A tab opens the text at once, without generating speech. A new session starts with no tabs.
 - Every part of the text has its own ▶ button.
 - Your place is remembered separately for each file.
 - Speed: ×0.75, ×1, ×1.5 and ×2.

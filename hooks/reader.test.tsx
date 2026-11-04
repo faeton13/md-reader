@@ -237,9 +237,10 @@ test('a file pressed in the list is read, and the list leaves only MD and folder
   await ui.press({ key: 'entry-docs' })
   await ui.press({ key: 'entry-c.md' })
 
-  expect(calls.at(-1)?.slice(-2)).toEqual(['--', 'docs/c.md'])
+  expect(calls.at(-1)?.slice(-2)).toEqual(['--', '/docs/c.md'])
   expect(played).toEqual(['/cache/1.mp3', '/cache/2.mp3'])
   expect(await ui.find({ key: 'entry-c.md' })).toBeFalsy()
+  expect(await ui.find({ key: 'open:/docs/c.md' })).toBeTruthy()
   await ui.unmount()
 })
 
@@ -746,6 +747,68 @@ test('hiding the band leaves the tabs in the panel', async ($, on) => {
   expect(await ui.find({ key: 'open:/к.md' })).toBeTruthy()
   expect(await ui.find({ key: 'open:/л.md' })).toBeTruthy()
   await ui.unmount()
+})
+
+test('a file opened from the panel joins the tabs, once', async ($, on) => {
+  const calls: string[][] = []
+  viewing(on, [], calls)
+  await $.session.start(session)
+  await $.tool.call(variants('к.md'))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  for (const typed of ['другой.md', './другой.md', '/другой.md']) {
+    await ui.input({ key: 'path', text: typed })
+    await settled()
+  }
+
+  expect(calls.at(-1)?.slice(-2)).toEqual(['--', '/другой.md'])
+  expect(await ui.find({ key: 'open:/к.md' })).toBeTruthy()
+  expect((await ui.find({ key: 'open:/другой.md' }))?.text).toBe('другой')
+  expect(await ui.findAll({ key: 'open:/другой.md' })).toHaveLength(1)
+
+  await ui.input({ key: 'path', text: '~/мой.md' })
+  await settled()
+  expect(calls.at(-1)?.slice(-2)).toEqual(['--', '~/мой.md'])
+  await ui.unmount()
+})
+
+test('a new session starts without tabs, and earlier sets wait under Sets', async ($, on) => {
+  viewing(on, [], [])
+  on('store.get', (_, e) => ({
+    value: e.key === 'sets' ? [{ id: '1', title: 'Вчера', files: ['/x/а.md'] }] : undefined,
+  }))
+  await $.session.start(session)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ key: 'open:/x/а.md' })).toBeFalsy()
+  await ui.press({ key: 'sets' })
+  await settled()
+  await ui.press({ key: 'set-0' })
+  await settled()
+
+  expect(await ui.find({ key: 'open:/x/а.md' })).toBeTruthy()
+  await ui.unmount()
+})
+
+test('a hidden band stays hidden for opened files and returns for sent ones', async ($, on) => {
+  viewing(on, [], [])
+  await $.session.start(session)
+  await $.tool.call(variants('к.md'))
+
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  await band.press({ key: 'forget' })
+  await settled()
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.input({ key: 'path', text: 'другой.md' })
+  await settled()
+  await ui.unmount()
+  expect(await band.find({ key: 'file:/другой.md' })).toBeFalsy()
+
+  await $.tool.call(variants('л.md'))
+  await settled()
+  expect(await band.find({ key: 'file:/л.md' })).toBeTruthy()
+  await band.unmount()
 })
 
 test('play on an opened text prepares the voice and reads it', async ($, on) => {

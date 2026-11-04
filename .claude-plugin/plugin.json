@@ -1,6 +1,6 @@
 {
   "name": "md-reader",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "A panel beside the chat that reads Markdown files aloud, with file tabs, speed control and a choice of local voices",
   "types": "./types/index.d.ts"
 }
